@@ -47,6 +47,12 @@ object InstallLog {
         w(c, "ram_total_mb=${mi.totalMem / 1024 / 1024} ram_avail_mb=${mi.availMem / 1024 / 1024}")
         w(c, "files_free_mb=$free abi=${Build.SUPPORTED_ABIS.joinToString(",")}")
         w(c, "app_version=${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
+        try {
+            val ps = android.system.Os.sysconf(android.system.OsConstants._SC_PAGESIZE)
+            w(c, "kernel_pagesize=$ps")
+        } catch (e: Exception) {
+            w(c, "kernel_pagesize=unknown (${e.message})")
+        }
         w(c, "===================")
     }
 
