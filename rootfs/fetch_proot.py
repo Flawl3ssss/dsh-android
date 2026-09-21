@@ -2,14 +2,10 @@
 import re, tarfile, urllib.request, gzip, io, os
 
 MIRROR = "https://packages.termux.org/apt/termux-main"
-PKGS = f"{MIRROR}/dists/stable/main/binary-aarch64/Packages.gz"
+PKGS = f"{MIRROR}/dists/stable/main/binary-aarch64/Packages"
 
 print("fetching Packages index...", flush=True)
 raw = urllib.request.urlopen(PKGS, timeout=120).read()
-try:
-    raw = gzip.decompress(raw)
-except Exception:
-    pass
 text = raw.decode("utf-8", "replace")
 blocks = text.split("\n\n")
 deb = None
