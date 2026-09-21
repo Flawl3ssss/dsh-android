@@ -16,10 +16,13 @@ jobs:
           sudo apt-get install -y -qq debootstrap qemu-user-static xz-utils
           sudo mkdir -p /tmp/rootfs16k
           sudo debootstrap --no-check-gpg --foreign --arch=arm64 --variant=minbase \
-            --include=ca-certificates,nodejs \
+            --include=ca-certificates --components=main,universe \
             plucky /tmp/rootfs16k http://ports.ubuntu.com/ubuntu-ports
           sudo cp /usr/bin/qemu-aarch64-static /tmp/rootfs16k/usr/bin/
           sudo chroot /tmp/rootfs16k /usr/bin/qemu-aarch64-static /bin/sh /debootstrap/debootstrap --second-stage
+          sudo chroot /tmp/rootfs16k /usr/bin/qemu-aarch64-static /bin/sh -c "apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nodejs && node --version"
+          sudo mkdir -p /tmp/rootfs16k/opt/node/bin
+          sudo ln -sf /usr/bin/node /tmp/rootfs16k/opt/node/bin/node
           sudo rm /tmp/rootfs16k/usr/bin/qemu-aarch64-static
           sudo rm -rf /tmp/rootfs16k/usr/share/doc/* /tmp/rootfs16k/usr/share/man/* \
             /tmp/rootfs16k/var/cache/apt/archives/*.deb /tmp/rootfs16k/var/lib/apt/lists/*
