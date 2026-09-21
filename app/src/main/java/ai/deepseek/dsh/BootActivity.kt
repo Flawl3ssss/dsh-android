@@ -494,7 +494,30 @@ class BootActivity : Activity() {
             ui("rootfs check failed: ${e.message}")
         }
         runProbe("version", listOf(bin, "--version"))
-        runProbe("true", listOf(bin, "-r", root, "/bin/true"))
+        // Что видит гость: листинг ключевых путей через сам proot.
+        runProbe("ls-usrbin", listOf(bin, "-r", root, "/bin/ls", "-la", "/usr/bin/true", "/bin/true", "/bin"))
+        runProbe("ld-version", listOf(bin, "-r", root, "/lib/ld-linux-aarch64.so.1", "--version"))
+        // С хоста: состав мультиарх-каталога гостя.
+        try {
+            val multi = java.io.File(root, "usr/lib/aarch64-linux-gnu")
+            val names = multi.list()?.take(20)?.joinToString(",")
+            ui("host multiarch: exists=${multi.exists()} libc=${java.io.File(multi, "libc.so.6").exists()} [$names]")
+            val libDir = java.io.File(root, "lib")
+            ui("host lib: isLink=${java.nio.file.Files.isSymbolicLink(libDir.toPath())} ls=${libDir.list()?.take(10)}")
+            val binDir = java.io.File(root, "bin")
+            ui("host bin: isLink=${java.nio.file.Files.isSymbolicLink(binDir.toPath())} ls=${binDir.list()?.take(10)}")
+        } catch (e: Exception) {
+            ui("host rootfs inspect failed: ${e.message}")
+        }
+        // Проба с полными биндами как в рантайме + TMPDIR.
+        runProbe(
+            "true-binds",
+            listOf(
+                bin, "-r", root,
+                "-b", "/dev", "-b", "/proc", "-b", "/sys",
+                "/bin/true"
+            )
+        )
     }
 
     private fun runProbe(tag: String, cmd: List<String>) {
