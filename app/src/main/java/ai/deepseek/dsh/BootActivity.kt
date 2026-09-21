@@ -231,8 +231,7 @@ class BootActivity : Activity() {
             untar(File(dl, "node.tar.xz"), File(Paths.debianDir(this), "opt"))
             fixNodeDir()
             prog(76)
-            File(dl, "proot").copyTo(Paths.prootBin(this), overwrite = true)
-            makeExecutable(Paths.prootBin(this))
+            installProot(File(dl, "proot"))
             ui("extract payload…")
             untar(File(dl, "dsh-payload.tar.xz"), filesDir)
             prog(88)
@@ -443,6 +442,23 @@ class BootActivity : Activity() {
 
 
     /** Выставление +x через прямой syscall (setExecutable иногда молча не срабатывает). */
+
+    /** proot едет внутри APK как native lib (правильный SELinux-контекст),
+     * скачанный файл — только запасной вариант. */
+    private fun installProot(downloaded: File) {
+        val bundled = java.io.File(applicationInfo.nativeLibraryDir, "libproot.so")
+        ui("bundled proot: exists=${bundled.exists()} size=${if (bundled.exists()) bundled.length() else 0}")
+        val src = if (bundled.exists() && bundled.length() > 100000) bundled else {
+            ui("bundled proot missing — fallback to downloaded")
+            if (!downloaded.exists() || downloaded.length() < 100000) {
+                throw IllegalStateException("proot missing (bundled + downloaded)")
+            }
+            downloaded
+        }
+        src.copyTo(Paths.prootBin(this), overwrite = true)
+        makeExecutable(Paths.prootBin(this))
+    }
+
     private fun makeExecutable(f: java.io.File) {
         var mode = -1
         try {
