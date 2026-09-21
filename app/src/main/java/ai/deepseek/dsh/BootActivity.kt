@@ -227,6 +227,7 @@ class BootActivity : Activity() {
             ui("node is inside rootfs, skip download")
             step(1, 2)
             step(4, 1)
+            wipeStaleDistro()
             ui("extract rootfs…")
             untar(File(dl, "debian-rootfs.tar.xz"), Paths.debianDir(this))
             prog(72)
@@ -335,6 +336,31 @@ class BootActivity : Activity() {
             }
         }
         throw IllegalStateException("Скачивание не удалось после 8 попыток: $url ($lastErr)")
+    }
+
+
+    /** Снос чужого дистрибутива (Debian поверх Ubuntu и наоборот — нельзя). */
+    private fun wipeStaleDistro() {
+        val marker = java.io.File(Paths.debianDir(this), "etc/os-release")
+        var wipe = false
+        try {
+            if (marker.exists()) {
+                val txt = marker.readText()
+                val isUbuntu = txt.contains("ID=ubuntu")
+                ui("existing distro ubuntu=$isUbuntu")
+                if (!isUbuntu) {
+                    ui("wiping stale Debian rootfs…")
+                    wipe = true
+                }
+            }
+        } catch (e: Exception) {
+            ui("distro check failed, wiping to be safe: ${e.message}")
+            wipe = true
+        }
+        if (wipe) {
+            Paths.debianDir(this).deleteRecursively()
+            Paths.debianDir(this).mkdirs()
+        }
     }
 
     private fun untar(archive: File, dest: File) {
