@@ -13,12 +13,11 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq debootstrap qemu-user-static xz-utils
           sudo mkdir -p /tmp/rootfs
-          sudo debootstrap --arch=arm64 --variant=minbase --include=ca-certificates \
+          sudo apt-get install -y -qq debian-archive-keyring
+          sudo debootstrap --foreign --arch=arm64 --variant=minbase --include=ca-certificates \
             --exclude=nano,ed bookworm /tmp/rootfs https://deb.debian.org/debian
           sudo cp /usr/bin/qemu-aarch64-static /tmp/rootfs/usr/bin/
-          sudo chroot /tmp/rootfs /usr/bin/qemu-aarch64-static /bin/true
-          sudo chroot /tmp/rootfs /debootstrap/debootstrap --second-stage || \
-            sudo qemu-aarch64-static /tmp/rootfs/debootstrap/debootstrap --second-stage
+          sudo chroot /tmp/rootfs /usr/bin/qemu-aarch64-static /bin/sh /debootstrap/debootstrap --second-stage
           sudo rm /tmp/rootfs/usr/bin/qemu-aarch64-static
           # slim: docs, locales, caches
           sudo rm -rf /tmp/rootfs/usr/share/doc/* /tmp/rootfs/usr/share/man/* \
