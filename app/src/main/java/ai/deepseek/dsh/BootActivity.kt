@@ -169,7 +169,7 @@ class BootActivity : Activity() {
                 Triple("$base/rootfs-bookworm-1/debian-rootfs.tar.xz", "debian-rootfs.tar.xz", 0),
                 Triple("$base/rootfs-bookworm-1/node.tar.xz", "node.tar.xz", 1),
                 Triple("$base/rootfs-bookworm-1/proot", "proot", 2),
-                Triple("$base/payload-1/dsh-payload.tar.xz", "dsh-payload.tar.xz", 3)
+                Triple("$base/payload-2/dsh-payload.tar.xz", "dsh-payload.tar.xz", 3)
             )
             files.forEach { (url, name, si) ->
                 step(si, 1)
@@ -220,8 +220,7 @@ class BootActivity : Activity() {
             ui("INSTALL OK")
             prog(100)
             step(6, 2)
-            startService()
-            if (!isFinishing) runOnUiThread { startMain() }
+            if (!isFinishing) runOnUiThread { gateKeyThenStart() }
         } catch (e: Exception) {
             ui("INSTALL FAILED: ${e.message}")
             steps.indices.forEach { if (!isFinishing) step(it, 3) }
@@ -310,6 +309,39 @@ class BootActivity : Activity() {
         val inner = opt.listFiles { f -> f.isDirectory && f.name.startsWith("node-v") }?.firstOrNull()
         val target = File(opt, "node")
         if (inner != null && !target.exists()) inner.renameTo(target)
+    }
+
+
+    /** Ключ Zen обязателен (встроенного больше нет): ввод при первом запуске. */
+    private fun gateKeyThenStart() {
+        if (Prefs(this).zenKey().isNotBlank()) {
+            startService()
+            startMain()
+            return
+        }
+        val input = android.widget.EditText(this).apply {
+            hint = "sk-..."
+            inputType = android.text.InputType.TYPE_CLASS_TEXT
+        }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(getString(R.string.key_title))
+            .setMessage(getString(R.string.key_msg))
+            .setView(input)
+            .setCancelable(false)
+            .setPositiveButton(getString(R.string.action_save)) { _, _ ->
+                val k = input.text.toString().trim()
+                if (k.isNotBlank()) {
+                    Prefs(this).setZenKey(k)
+                    InstallLog.w(this, "zen key saved")
+                }
+                startService()
+                startMain()
+            }
+            .setNegativeButton(getString(R.string.key_later)) { _, _ ->
+                startService()
+                startMain()
+            }
+            .show()
     }
 
     private fun startService() {

@@ -65,4 +65,9 @@
     <string name="tile_on">DSH on</string>
     <string name="tile_off">DSH off</string>
     <string name="boot_subtitle">Local AI runtime: Debian + DSH + Zen adapter</string>
+    <string name="key_title">Zen API key</string>
+    <string name="key_msg">Paste your Zen (OpenCode) API key. Without it the model will not answer. You can change it later in Settings.</string>
+    <string name="action_save">Save</string>
+    <string name="key_later">Later</string>
+    <string name="need_key">Enter your Zen key in Settings — the model is offline without it</string>
 </resources>

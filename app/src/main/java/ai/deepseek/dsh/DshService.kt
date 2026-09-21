@@ -52,6 +52,11 @@ class DshService : Service() {
     private fun boot() {
         val prefs = Prefs(this)
         InstallLog.w(this, "service boot")
+        if (prefs.zenKey().isBlank()) {
+            notifyFail(getString(R.string.need_key))
+            updateNotif(getString(R.string.need_key), 0)
+            return
+        }
         try {
             val logs = Paths.logsDir(this)
             // 1. zen-adapter

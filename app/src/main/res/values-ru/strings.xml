@@ -65,4 +65,9 @@
     <string name="tile_on">DSH вкл</string>
     <string name="tile_off">DSH выкл</string>
     <string name="boot_subtitle">Локальный AI-рантайм: Debian + DSH + Zen-адаптер</string>
+    <string name="key_title">Ключ Zen API</string>
+    <string name="key_msg">Вставь свой API-ключ Zen (OpenCode). Без него модель отвечать не будет. Позже ключ можно сменить в настройках.</string>
+    <string name="action_save">Сохранить</string>
+    <string name="key_later">Позже</string>
+    <string name="need_key">Введи Zen-ключ в настройках — без него модель офлайн</string>
 </resources>
