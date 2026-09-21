@@ -249,10 +249,20 @@ class BootActivity : Activity() {
             )
             Paths.workspace(this).mkdirs()
             Paths.sharedWorkspace(this)
-            val p = ProcessBuilder(
-                Paths.prootBin(this).absolutePath, "-r", Paths.debianDir(this).absolutePath,
-                "/bin/echo", "proot-ok"
-            ).start()
+            diagExec()
+            val p = try {
+                ProcessBuilder(
+                    Paths.prootBin(this).absolutePath, "-r", Paths.debianDir(this).absolutePath,
+                    "/bin/echo", "proot-ok"
+                ).start()
+            } catch (e: Exception) {
+                ui("direct exec failed (${e.message}), trying linker64")
+                ProcessBuilder(
+                    "/system/bin/linker64", Paths.prootBin(this).absolutePath,
+                    "-r", Paths.debianDir(this).absolutePath,
+                    "/bin/echo", "proot-ok"
+                ).start()
+            }
             val out = p.inputStream.bufferedReader().readText().trim()
             if (p.waitFor() != 0 || out != "proot-ok") throw IllegalStateException("proot smoke failed: $out")
             step(5, 2)
@@ -455,8 +465,31 @@ class BootActivity : Activity() {
             }
             downloaded
         }
-        src.copyTo(Paths.prootBin(this), overwrite = true)
-        makeExecutable(Paths.prootBin(this))
+        val dst = Paths.prootBin(this)
+        if (src.absolutePath != dst.absolutePath) {
+            src.copyTo(dst, overwrite = true)
+        } else {
+            ui("proot used in place, no copy")
+        }
+        makeExecutable(dst)
+    }
+
+    /** Диагностика exec: baseline системного echo + доступ к бинарю. */
+    private fun diagExec() {
+        try {
+            val e = ProcessBuilder("/system/bin/echo", "sys-ok").start()
+            val o = e.inputStream.bufferedReader().readText().trim()
+            ui("baseline /system/bin/echo: $o (exit ${e.waitFor()})")
+        } catch (ex: Exception) {
+            ui("baseline echo FAILED: ${ex.message}")
+        }
+        try {
+            val f = Paths.prootBin(this)
+            val xok = android.system.Os.access(f.absolutePath, android.system.OsConstants.X_OK)
+            ui("proot access X_OK=$xok path=${f.absolutePath}")
+        } catch (ex: Exception) {
+            ui("proot access check FAILED: ${ex.message}")
+        }
     }
 
     private fun makeExecutable(f: java.io.File) {

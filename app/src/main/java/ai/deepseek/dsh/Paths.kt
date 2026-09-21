@@ -9,7 +9,13 @@ object Paths {
     fun payloadDir(c: Context) = File(c.filesDir, "payload")
     fun dshHome(c: Context) = File(c.filesDir, "dsh-home")
     fun workspace(c: Context) = File(c.filesDir, "workspace")
-    fun prootBin(c: Context) = File(c.filesDir, "proot")
+    /** proot: сначала пробуем прямо из native lib dir (без копирования). */
+    fun prootLib(c: Context) = File(c.applicationInfo.nativeLibraryDir, "libproot.so")
+    fun prootBin(c: Context): File {
+        val lib = prootLib(c)
+        if (lib.exists() && lib.length() > 100000) return lib
+        return File(c.filesDir, "proot")
+    }
     fun nodeBin(): String = "/opt/node/bin/node"
 
     /** Общая зона на внешней памяти. */
