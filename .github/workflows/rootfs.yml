@@ -1,0 +1,54 @@
+name: rootfs
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build slim Debian arm64 rootfs
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq debootstrap qemu-user-static xz-utils
+          sudo mkdir -p /tmp/rootfs
+          sudo debootstrap --arch=arm64 --variant=minbase --include=ca-certificates \
+            --exclude=nano,ed bookworm /tmp/rootfs https://deb.debian.org/debian
+          sudo cp /usr/bin/qemu-aarch64-static /tmp/rootfs/usr/bin/
+          sudo chroot /tmp/rootfs /usr/bin/qemu-aarch64-static /bin/true
+          sudo chroot /tmp/rootfs /debootstrap/debootstrap --second-stage || \
+            sudo qemu-aarch64-static /tmp/rootfs/debootstrap/debootstrap --second-stage
+          sudo rm /tmp/rootfs/usr/bin/qemu-aarch64-static
+          # slim: docs, locales, caches
+          sudo rm -rf /tmp/rootfs/usr/share/doc/* /tmp/rootfs/usr/share/man/* \
+            /tmp/rootfs/var/cache/apt/archives/*.deb /tmp/rootfs/var/lib/apt/lists/*
+          echo "nameserver 8.8.8.8" | sudo tee /tmp/rootfs/etc/resolv.conf
+          sudo tar -C /tmp/rootfs -cJf /tmp/debian-rootfs.tar.xz .
+          ls -lh /tmp/debian-rootfs.tar.xz
+          sha256sum /tmp/debian-rootfs.tar.xz | tee /tmp/debian-rootfs.tar.xz.sha256
+      - name: Fetch proot static binary (aarch64, Termux build)
+        run: |
+          cd /tmp
+          wget -q http://packages.termux.org/apt/termux-main/dists/stable/main/binary-aarch64/Packages -O - 2>/dev/null | grep -A3 '^Package: proot$' | head -n 8 || true
+          sudo apt-get install -y -qq binutils
+          python3 "${GITHUB_WORKSPACE}/rootfs/fetch_proot.py"
+          ls -lh /tmp/proot
+      - name: Fetch Node 24 aarch64
+        run: |
+          cd /tmp
+          NODEV=$(curl -fsSL https://nodejs.org/dist/index.json | python3 -c "import json,sys; print([r['version'] for r in json.load(sys.stdin) if r['version'].startswith('v24.')][0])")
+          echo "node $NODEV"
+          wget -q "https://nodejs.org/dist/$NODEV/node-$NODEV-linux-arm64.tar.xz" -O node.tar.xz
+          ls -lh node.tar.xz
+      - name: Publish rootfs release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=rootfs-bookworm-1
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release upload "$TAG" /tmp/debian-rootfs.tar.xz /tmp/debian-rootfs.tar.xz.sha256 /tmp/node.tar.xz /tmp/proot --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" /tmp/debian-rootfs.tar.xz /tmp/debian-rootfs.tar.xz.sha256 /tmp/node.tar.xz /tmp/proot \
+              --repo "$GITHUB_REPOSITORY" --title "Debian rootfs + Node + proot (arm64)"
+          fi
