@@ -32,7 +32,7 @@ class BootActivity : Activity() {
     private lateinit var retry: Button
     private lateinit var sendLog: Button
 
-    private val steps = listOf("Загрузка Debian", "Загрузка Node", "Загрузка proot", "Загрузка DSH", "Распаковка", "Проверка", "Запуск")
+    private val steps = listOf("Загрузка Ubuntu", "Node внутри", "Загрузка proot", "Загрузка DSH", "Распаковка", "Проверка", "Запуск")
     private val base = "https://github.com/Flawl3ssss/dsh-android/releases/download"
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -206,9 +206,9 @@ class BootActivity : Activity() {
                 throw IllegalStateException("Мало места: нужно ~1.2 ГБ, свободно ${filesDir.freeSpace / 1024 / 1024} МБ")
             }
             val dl = File(cacheDir, "dl").apply { mkdirs() }
+            // Ubuntu plucky rootfs: Node уже внутри (/usr/bin/node + /opt/node symlink).
             val files = listOf(
-                Triple("$base/rootfs-bookworm-1/debian-rootfs.tar.xz", "debian-rootfs.tar.xz", 0),
-                Triple("$base/rootfs-bookworm-1/node.tar.xz", "node.tar.xz", 1),
+                Triple("$base/rootfs-plucky-1/debian-rootfs.tar.xz", "debian-rootfs.tar.xz", 0),
                 Triple("$base/rootfs-bookworm-1/proot", "proot", 2),
                 Triple("$base/payload-2/dsh-payload.tar.xz", "dsh-payload.tar.xz", 3)
             )
@@ -223,14 +223,17 @@ class BootActivity : Activity() {
                 ui("[$name] ok ${out.length()} bytes")
                 step(si, 2)
             }
+            step(1, 1)
+            ui("node is inside rootfs, skip download")
+            step(1, 2)
             step(4, 1)
             ui("extract rootfs…")
             untar(File(dl, "debian-rootfs.tar.xz"), Paths.debianDir(this))
-            prog(68)
-            ui("extract node…")
-            untar(File(dl, "node.tar.xz"), File(Paths.debianDir(this), "opt"))
-            fixNodeDir()
-            prog(76)
+            prog(72)
+            ui("node check…")
+            val guestNode = java.io.File(Paths.debianDir(this), "opt/node/bin/node")
+            ui("guest node present=${guestNode.exists()}")
+            if (!guestNode.exists()) throw IllegalStateException("/opt/node/bin/node missing in rootfs")
             installProot(File(dl, "proot"))
             ui("extract payload…")
             untar(File(dl, "dsh-payload.tar.xz"), filesDir)
