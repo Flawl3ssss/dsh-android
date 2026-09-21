@@ -73,4 +73,23 @@
     <string name="crash_title">Previous run crashed</string>
     <string name="crash_msg">The last install attempt died unexpectedly. The log was saved — send it so the cause can be fixed.</string>
     <string name="action_copy_log">Copy log to files</string>
+    <string name="menu_files">Files</string>
+    <string name="fm_tab_ws">Workspace</string>
+    <string name="fm_tab_inbox">Inbox</string>
+    <string name="fm_tab_outbox">Outbox</string>
+    <string name="fm_tab_dl">Downloads</string>
+    <string name="fm_pick">Select a file first</string>
+    <string name="fm_buffered">Buffered — open target folder and Paste</string>
+    <string name="fm_open">Open</string>
+    <string name="fm_copy">Copy</string>
+    <string name="fm_move">Move</string>
+    <string name="fm_paste">Paste</string>
+    <string name="fm_mkdir">New folder</string>
+    <string name="fm_rename">Rename</string>
+    <string name="fm_delete">Delete</string>
+    <string name="fm_confirm_del">Delete %1$s?</string>
+    <string name="fm_share">Share</string>
+    <string name="fm_attach">Attach to chat</string>
+    <string name="fm_attached">Copied to inbox — attach it in chat</string>
+    <string name="fm_status">%1$d items, %2$d KB</string>
 </resources>

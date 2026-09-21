@@ -73,4 +73,23 @@
     <string name="crash_title">Прошлый запуск упал</string>
     <string name="crash_msg">Прошлая попытка установки неожиданно прервалась. Лог сохранён — отправь его, чтобы починить причину.</string>
     <string name="action_copy_log">Скопировать лог в файлы</string>
+    <string name="menu_files">Файлы</string>
+    <string name="fm_tab_ws">Workspace</string>
+    <string name="fm_tab_inbox">Входящие</string>
+    <string name="fm_tab_outbox">Исходящие</string>
+    <string name="fm_tab_dl">Загрузки</string>
+    <string name="fm_pick">Сначала выбери файл</string>
+    <string name="fm_buffered">В буфере — открой папку и вставь</string>
+    <string name="fm_open">Открыть</string>
+    <string name="fm_copy">Копировать</string>
+    <string name="fm_move">Переместить</string>
+    <string name="fm_paste">Вставить</string>
+    <string name="fm_mkdir">Новая папка</string>
+    <string name="fm_rename">Переименовать</string>
+    <string name="fm_delete">Удалить</string>
+    <string name="fm_confirm_del">Удалить %1$s?</string>
+    <string name="fm_share">Поделиться</string>
+    <string name="fm_attach">Прикрепить в чат</string>
+    <string name="fm_attached">Скопировано во входящие — прикрепи в чате</string>
+    <string name="fm_status">Файлов: %1$d, %2$d КБ</string>
 </resources>

@@ -155,6 +155,7 @@ class MainActivity : AppCompatActivity() {
         menu.add(0, 3, 0, getString(R.string.menu_logs))
         menu.add(0, 4, 0, getString(R.string.menu_settings))
         menu.add(0, 5, 0, getString(R.string.menu_export))
+        menu.add(0, 6, 0, getString(R.string.menu_files))
         return true
     }
 
@@ -165,6 +166,7 @@ class MainActivity : AppCompatActivity() {
             3 -> startActivity(Intent(this, LogsActivity::class.java))
             4 -> startActivity(Intent(this, SettingsActivity::class.java))
             5 -> exportChat()
+            6 -> startActivity(Intent(this, FilesActivity::class.java))
         }
         return true
     }
