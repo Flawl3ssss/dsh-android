@@ -327,7 +327,7 @@ class BootActivity : Activity() {
         var skipped = 0
         // Удаляем возможный мусор от прошлой неудачной распаковки.
         FileInputStream(archive).use { fis ->
-            org.apache.commons.compress.compressors.xz.XZCompressorInputStream(fis, 256 * 1024).use { xz ->
+            org.apache.commons.compress.compressors.xz.XZCompressorInputStream(fis).use { xz ->
                 org.apache.commons.compress.archivers.tar.TarArchiveInputStream(xz).use { tar ->
                     while (true) {
                         val e = try {
