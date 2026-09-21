@@ -50,6 +50,25 @@ object InstallLog {
         w(c, "===================")
     }
 
+    /**
+     * Копия текущего лога в общую папку ( переживает смерть процесса и видна
+     * пользователю в файлах: DSH/logs/ ). Возвращает файл или null.
+     */
+    fun exportToShared(c: Context): File? {
+        return try {
+            val src = currentFile(c)
+            val dst = File(
+                File(c.getExternalFilesDir(null), "DSH/logs"),
+                "dsh-install-${src.name}"
+            )
+            dst.parentFile?.mkdirs()
+            src.copyTo(dst, overwrite = true)
+            dst
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     /** Поделиться логом установки через системный шаринг. */
     fun share(c: Context, file: File = currentFile(c)) {
         val uri = FileProvider.getUriForFile(c, "ai.deepseek.dsh.fileprovider", file)

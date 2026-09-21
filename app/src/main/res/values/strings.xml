@@ -70,4 +70,7 @@
     <string name="action_save">Save</string>
     <string name="key_later">Later</string>
     <string name="need_key">Enter your Zen key in Settings — the model is offline without it</string>
+    <string name="crash_title">Previous run crashed</string>
+    <string name="crash_msg">The last install attempt died unexpectedly. The log was saved — send it so the cause can be fixed.</string>
+    <string name="action_copy_log">Copy log to files</string>
 </resources>

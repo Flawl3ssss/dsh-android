@@ -70,4 +70,7 @@
     <string name="action_save">Сохранить</string>
     <string name="key_later">Позже</string>
     <string name="need_key">Введи Zen-ключ в настройках — без него модель офлайн</string>
+    <string name="crash_title">Прошлый запуск упал</string>
+    <string name="crash_msg">Прошлая попытка установки неожиданно прервалась. Лог сохранён — отправь его, чтобы починить причину.</string>
+    <string name="action_copy_log">Скопировать лог в файлы</string>
 </resources>

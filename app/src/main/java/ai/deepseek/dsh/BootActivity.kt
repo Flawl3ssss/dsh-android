@@ -37,6 +37,7 @@ class BootActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        installCrashCatcher()
         if (Paths.isInstalled(this)) {
             startMain()
             return
@@ -115,6 +116,45 @@ class BootActivity : Activity() {
         Thread { runInstall() }.start()
     }
 
+
+    /** Ловец любых необработанных падений: след остаётся в логе даже если процесс убит. */
+    private fun installCrashCatcher() {
+        val prev = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { t, e ->
+            try {
+                val sw = java.io.StringWriter()
+                e.printStackTrace(java.io.PrintWriter(sw))
+                val msg = "CRASH [${t.name}]: ${e}\n${sw}"
+                InstallLog.w(this, msg)
+                InstallLog.exportToShared(this)
+            } catch (_: Exception) {
+            }
+            prev?.uncaughtException(t, e)
+        }
+        // Если прошлый запуск упал — сразу предложить отправить лог.
+        try {
+            val marker = java.io.File(Paths.logsDir(this), "CRASH.pending")
+            if (marker.exists()) {
+                marker.delete()
+                androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle(getString(R.string.crash_title))
+                    .setMessage(getString(R.string.crash_msg))
+                    .setPositiveButton(getString(R.string.action_send_log)) { _, _ -> InstallLog.share(this) }
+                    .setNeutralButton(getString(R.string.action_copy_log)) { _, _ -> InstallLog.exportToShared(this) }
+                    .setNegativeButton(getString(R.string.key_later), null)
+                    .show()
+            }
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun markCrashPending() {
+        try {
+            java.io.File(Paths.logsDir(this), "CRASH.pending").createNewFile()
+        } catch (_: Exception) {
+        }
+    }
+
     private fun Space(px: Int, horizontal: Boolean = false): LinearLayout {
         return LinearLayout(this).apply {
             layoutParams = if (horizontal) LinearLayout.LayoutParams(px, -2)
@@ -158,6 +198,7 @@ class BootActivity : Activity() {
     }
 
     private fun runInstall() {
+        markCrashPending()
         if (!isFinishing) runOnUiThread { retry.isEnabled = false }
         steps.indices.forEach { step(it, 0) }
         try {
@@ -217,11 +258,13 @@ class BootActivity : Activity() {
             if (p.waitFor() != 0 || out != "proot-ok") throw IllegalStateException("proot smoke failed: $out")
             step(5, 2)
             step(6, 1)
+            java.io.File(Paths.logsDir(this), "CRASH.pending").delete()
             ui("INSTALL OK")
             prog(100)
             step(6, 2)
             if (!isFinishing) runOnUiThread { gateKeyThenStart() }
         } catch (e: Exception) {
+            java.io.File(Paths.logsDir(this), "CRASH.pending").delete()
             ui("INSTALL FAILED: ${e.message}")
             steps.indices.forEach { if (!isFinishing) step(it, 3) }
             if (!isFinishing) runOnUiThread { retry.isEnabled = true }
@@ -281,27 +324,81 @@ class BootActivity : Activity() {
     private fun untar(archive: File, dest: File) {
         dest.mkdirs()
         var n = 0
+        var skipped = 0
+        // Удаляем возможный мусор от прошлой неудачной распаковки.
         FileInputStream(archive).use { fis ->
-            org.apache.commons.compress.compressors.xz.XZCompressorInputStream(fis).use { xz ->
+            org.apache.commons.compress.compressors.xz.XZCompressorInputStream(fis, 256 * 1024).use { xz ->
                 org.apache.commons.compress.archivers.tar.TarArchiveInputStream(xz).use { tar ->
                     while (true) {
-                        val e = tar.nextEntry ?: break
-                        val out = File(dest, e.name)
-                        if (!out.canonicalPath.startsWith(dest.canonicalPath)) continue
-                        if (e.isDirectory) {
-                            out.mkdirs()
-                        } else {
-                            out.parentFile?.mkdirs()
-                            out.outputStream().use { tar.copyTo(it) }
+                        val e = try {
+                            tar.nextEntry ?: break
+                        } catch (ex: Exception) {
+                            ui("tar entry read failed: ${ex.message}")
+                            break
                         }
-                        if (e.mode and 0b001001001 != 0) out.setExecutable(true, false)
+                        try {
+                            val out = File(dest, e.name)
+                            if (!out.canonicalPath.startsWith(dest.canonicalPath)) {
+                                skipped++
+                                continue
+                            }
+                            when {
+                                e.isDirectory -> out.mkdirs()
+                                e.isSymbolicLink -> {
+                                    try {
+                                        java.nio.file.Files.deleteIfExists(out.toPath())
+                                    } catch (_: Exception) {
+                                    }
+                                    out.parentFile?.mkdirs()
+                                    try {
+                                        java.nio.file.Files.createSymbolicLink(out.toPath(), java.nio.file.Paths.get(e.linkName))
+                                    } catch (ex: Exception) {
+                                        ui("symlink skip ${e.name}: ${ex.message}")
+                                        skipped++
+                                    }
+                                }
+                                e.isLink -> {
+                                    // hardlink: копируем содержимое цели, если она уже распакована
+                                    val target = File(dest, e.linkName)
+                                    out.parentFile?.mkdirs()
+                                    if (target.isFile) target.copyTo(out, overwrite = true)
+                                    else {
+                                        ui("hardlink skip ${e.name}")
+                                        skipped++
+                                    }
+                                }
+                                else -> {
+                                    // Если на пути файл вместо каталога (след прошлой битой распаковки) — чистим.
+                                    var p = out.parentFile
+                                    while (p != null && p.canonicalPath.startsWith(dest.canonicalPath)) {
+                                        if (p.exists() && !p.isDirectory) {
+                                            ui("cleanup stray file: ${p.name}")
+                                            p.delete()
+                                            break
+                                        }
+                                        p = p.parentFile
+                                    }
+                                    out.parentFile?.mkdirs()
+                                    out.outputStream().use { tar.copyTo(it) }
+                                }
+                            }
+                            if (!e.isSymbolicLink && e.mode and 0b001001001 != 0) {
+                                try {
+                                    out.setExecutable(true, false)
+                                } catch (_: Exception) {
+                                }
+                            }
+                        } catch (ex: Exception) {
+                            ui("entry skip ${e.name}: ${ex.message}")
+                            skipped++
+                        }
                         n++
-                        if (n % 2000 == 0) ui("extract… $n")
+                        if (n % 1000 == 0) ui("extract… $n (skip $skipped)")
                     }
                 }
             }
         }
-        ui("extract done: $n entries")
+        ui("extract done: $n entries, skipped $skipped")
     }
 
     private fun fixNodeDir() {
