@@ -1,11 +1,30 @@
 """Download Termux proot .deb (aarch64) and extract the static binary."""
 import re, tarfile, urllib.request, gzip, io, os
 
-MIRROR = "http://packages.termux.org/apt/termux-main"
-PKGS = f"{MIRROR}/dists/stable/main/binary-aarch64/Packages"
+MIRRORS = [
+    "http://packages.termux.org/apt/termux-main",
+    "https://grimler.se/termux/termux-main",
+    "https://termux.mentality.rip/termux-main",
+]
+UA = {"User-Agent": "Debian APT-HTTP/1.3 (arm64)"}
+
+def fetch(url):
+    req = urllib.request.Request(url, headers=UA)
+    return urllib.request.urlopen(req, timeout=120).read()
 
 print("fetching Packages index...", flush=True)
-raw = urllib.request.urlopen(PKGS, timeout=120).read()
+raw = None
+errs = []
+for m in MIRRORS:
+    try:
+        raw = fetch(f"{m}/dists/stable/main/binary-aarch64/Packages")
+        MIRROR = m
+        print("mirror OK:", m, flush=True)
+        break
+    except Exception as e:
+        errs.append(f"{m}: {e!r}")
+        continue
+assert raw is not None, "all mirrors failed: " + "; ".join(errs)
 text = raw.decode("utf-8", "replace")
 blocks = text.split("\n\n")
 deb = None
@@ -18,7 +37,7 @@ for b in blocks:
 assert deb, "proot entry not found in Packages index"
 url = f"{MIRROR}/{deb}"
 print("downloading", url, flush=True)
-data = urllib.request.urlopen(url, timeout=300).read()
+data = fetch(url)
 open("/tmp/proot.deb", "wb").write(data)
 # .deb = ar archive: debian-binary, control.tar.*, data.tar.*
 import subprocess
