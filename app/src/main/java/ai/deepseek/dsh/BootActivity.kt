@@ -232,7 +232,7 @@ class BootActivity : Activity() {
             fixNodeDir()
             prog(76)
             File(dl, "proot").copyTo(Paths.prootBin(this), overwrite = true)
-            Paths.prootBin(this).setExecutable(true)
+            makeExecutable(Paths.prootBin(this))
             ui("extract payload…")
             untar(File(dl, "dsh-payload.tar.xz"), filesDir)
             prog(88)
@@ -439,6 +439,39 @@ class BootActivity : Activity() {
                 startMain()
             }
             .show()
+    }
+
+
+    /** Выставление +x через прямой syscall (setExecutable иногда молча не срабатывает). */
+    private fun makeExecutable(f: java.io.File) {
+        var mode = -1
+        try {
+            f.setExecutable(true, false)
+        } catch (e: Exception) {
+            ui("setExecutable failed: ${e.message}")
+        }
+        try {
+            android.system.Os.chmod(f.absolutePath, 448) // 0700
+        } catch (e: Exception) {
+            ui("Os.chmod failed: ${e.message}")
+        }
+        // fallback: системный chmod, если есть
+        if (!f.canExecute()) {
+            try {
+                val p = ProcessBuilder("/system/bin/chmod", "700", f.absolutePath).start()
+                p.waitFor()
+            } catch (e: Exception) {
+                ui("chmod bin failed: ${e.message}")
+            }
+        }
+        try {
+            mode = android.system.Os.stat(f.absolutePath).st_mode and 511
+        } catch (_: Exception) {
+        }
+        ui("proot mode=${mode.toString(8)} executable=${f.canExecute()} size=${f.length()}")
+        if (!f.canExecute()) {
+            throw IllegalStateException("proot not executable (mode ${mode.toString(8)}).")
+        }
     }
 
     private fun startService() {
