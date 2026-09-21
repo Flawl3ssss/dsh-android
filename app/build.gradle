@@ -7,6 +7,10 @@ android {
     namespace = "ai.deepseek.dsh"
     compileSdk = 35
 
+    buildFeatures {
+        buildConfig = true
+    }
+
     defaultConfig {
         applicationId = "ai.deepseek.dsh"
         minSdk = 29

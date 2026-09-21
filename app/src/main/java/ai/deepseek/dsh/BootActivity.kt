@@ -151,7 +151,7 @@ class BootActivity : Activity() {
                     c.getHeaderField("Content-Length")?.toLongOrNull() ?: -1L
                 }
                 c.inputStream.use { ins ->
-                    (if (done > 0) out.outputStream(true) else out.outputStream()).use { os ->
+                    (if (done > 0) java.io.FileOutputStream(out, true) else out.outputStream()).use { os ->
                         val buf = ByteArray(256 * 1024)
                         while (true) {
                             val n = ins.read(buf)
