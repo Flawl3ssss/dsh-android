@@ -1,7 +1,7 @@
 """Download Termux proot .deb (aarch64) and extract the static binary."""
 import re, tarfile, urllib.request, gzip, io, os
 
-MIRROR = "https://packages.termux.org/apt/termux-main"
+MIRROR = "http://packages.termux.org/apt/termux-main"
 PKGS = f"{MIRROR}/dists/stable/main/binary-aarch64/Packages"
 
 print("fetching Packages index...", flush=True)
