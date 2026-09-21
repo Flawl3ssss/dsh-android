@@ -250,6 +250,7 @@ class BootActivity : Activity() {
             Paths.workspace(this).mkdirs()
             Paths.sharedWorkspace(this)
             diagExec()
+            probeProot()
             val p = try {
                 ProcessBuilder(
                     Paths.prootBin(this).absolutePath, "-r", Paths.debianDir(this).absolutePath,
@@ -263,8 +264,11 @@ class BootActivity : Activity() {
                     "/bin/echo", "proot-ok"
                 ).start()
             }
+            // (stderr уже виден в probe выше)
             val out = p.inputStream.bufferedReader().readText().trim()
-            if (p.waitFor() != 0 || out != "proot-ok") throw IllegalStateException("proot smoke failed: $out")
+            val code = p.waitFor()
+            ui("smoke exit=$code out=${out.take(200)}")
+            if (code != 0 || out != "proot-ok") throw IllegalStateException("proot smoke failed (exit $code): $out")
             step(5, 2)
             step(6, 1)
             java.io.File(Paths.logsDir(this), "CRASH.pending").delete()
@@ -475,6 +479,37 @@ class BootActivity : Activity() {
     }
 
     /** Диагностика exec: baseline системного echo + доступ к бинарю. */
+
+    /** Ступенчатая проверка proot: версия (без rootfs) → true → echo, со stderr и кодом. */
+    private fun probeProot() {
+        val bin = Paths.prootBin(this).absolutePath
+        val root = Paths.debianDir(this).absolutePath
+        // rootfs на месте?
+        try {
+            val names = arrayOf("bin/echo", "bin/true", "bin/bash", "lib/ld-linux-aarch64.so.1")
+            for (n in names) {
+                ui("rootfs check $n: ${java.io.File(root, n).exists()}")
+            }
+        } catch (e: Exception) {
+            ui("rootfs check failed: ${e.message}")
+        }
+        runProbe("version", listOf(bin, "--version"))
+        runProbe("true", listOf(bin, "-r", root, "/bin/true"))
+    }
+
+    private fun runProbe(tag: String, cmd: List<String>) {
+        try {
+            val pb = ProcessBuilder(cmd)
+            pb.redirectErrorStream(true)
+            val p = pb.start()
+            val out = p.inputStream.bufferedReader().readText()
+            val code = p.waitFor()
+            ui("probe [$tag] exit=$code out=${out.take(400).replace("\n", "|")}")
+        } catch (e: Exception) {
+            ui("probe [$tag] START FAILED: ${e.message}")
+        }
+    }
+
     private fun diagExec() {
         try {
             val e = ProcessBuilder("/system/bin/echo", "sys-ok").start()
