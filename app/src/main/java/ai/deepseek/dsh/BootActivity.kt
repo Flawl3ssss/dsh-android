@@ -2,37 +2,38 @@ package ai.deepseek.dsh
 
 import android.app.Activity
 import android.content.Intent
+import android.graphics.Typeface
 import android.os.Build
 import android.os.Bundle
+import android.view.Gravity
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
 import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
-import java.io.FileInputStream
 import java.security.MessageDigest
 
 /**
- * Мастер первого запуска: разрешения → скачивание → распаковка → старт.
- * Весь процесс пишется в install-*.log (InstallLog) — при сбое кнопка «Отправить лог».
+ * Современный мастер первого запуска: тёмная тема, шаги со статусами,
+ * большой прогресс, живой лог. Кнопки «Повторить»/«Отправить лог» всегда
+ * на экране (никаких динамических вью — причина прошлого вылета убрана).
+ * Весь процесс пишется в install-*.log.
  */
 class BootActivity : Activity() {
-    private lateinit var log: TextView
+    private lateinit var stepViews: List<TextView>
     private lateinit var bar: ProgressBar
+    private lateinit var pct: TextView
+    private lateinit var log: TextView
     private lateinit var retry: Button
     private lateinit var sendLog: Button
 
-    // Источники артефактов первой версии (обновляются через payload.json/релизы).
+    private val steps = listOf("Загрузка Debian", "Загрузка Node", "Загрузка proot", "Загрузка DSH", "Распаковка", "Проверка", "Запуск")
     private val base = "https://github.com/Flawl3ssss/dsh-android/releases/download"
-    private val files = listOf(
-        Triple("$base/rootfs-bookworm-1/debian-rootfs.tar.xz", "debian-rootfs.tar.xz", "rootfs"),
-        Triple("$base/rootfs-bookworm-1/node.tar.xz", "node.tar.xz", "node"),
-        Triple("$base/rootfs-bookworm-1/proot", "proot", "proot"),
-        Triple("$base/payload-1/dsh-payload.tar.xz", "dsh-payload.tar.xz", "payload")
-    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -40,64 +41,163 @@ class BootActivity : Activity() {
             startMain()
             return
         }
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(32, 32, 32, 32) }
-        log = TextView(this).apply { textSize = 12f }
+        val bg = 0xFF0B0E14.toInt()
+        val card = 0xFF151B26.toInt()
+        val accent = 0xFF4D6BFE.toInt()
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(bg)
+            setPadding(48, 64, 48, 32)
+        }
+        val title = TextView(this).apply {
+            text = "DSH"
+            textSize = 34f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(0xFFE8ECF3.toInt())
+        }
+        val sub = TextView(this).apply {
+            text = getString(R.string.boot_subtitle)
+            textSize = 15f
+            setTextColor(0xFF9AA3B5.toInt())
+        }
+        root.addView(title)
+        root.addView(sub)
+        root.addView(Space(28))
+        val cardBox = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(card)
+            setPadding(32, 28, 32, 28)
+        }
+        stepViews = steps.map { name ->
+            TextView(this).apply {
+                text = "○  $name"
+                textSize = 15f
+                setTextColor(0xFF9AA3B5.toInt())
+                setPadding(0, 8, 0, 8)
+            }.also { cardBox.addView(it) }
+        }
+        root.addView(cardBox)
+        root.addView(Space(24))
         bar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 100 }
-        retry = Button(this).apply { text = getString(R.string.action_retry); setOnClickListener { Thread { runInstall() }.start() } }
-        sendLog = Button(this).apply { text = getString(R.string.action_send_log); setOnClickListener { InstallLog.share(this@BootActivity) } }
-        val sv = ScrollView(this).apply { addView(log) }
+        pct = TextView(this).apply {
+            text = "0%"
+            textSize = 13f
+            setTextColor(0xFF9AA3B5.toInt())
+            gravity = Gravity.END
+        }
         root.addView(bar)
+        root.addView(pct)
+        root.addView(Space(16))
+        log = TextView(this).apply {
+            textSize = 11f
+            typeface = Typeface.MONOSPACE
+            setTextColor(0xFF9AA3B5.toInt())
+        }
+        val sv = ScrollView(this).apply { addView(log) }
         root.addView(sv, LinearLayout.LayoutParams(-1, 0, 1f))
-        root.addView(retry)
-        root.addView(sendLog)
-        retry.isEnabled = false
+        root.addView(Space(16))
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        retry = Button(this).apply {
+            text = getString(R.string.action_retry)
+            isEnabled = false
+            setOnClickListener { Thread { runInstall() }.start() }
+        }
+        sendLog = Button(this).apply {
+            text = getString(R.string.action_send_log)
+            setOnClickListener { InstallLog.share(this@BootActivity) }
+        }
+        row.addView(retry, LinearLayout.LayoutParams(0, -2, 1f))
+        row.addView(Space(16, horizontal = true))
+        row.addView(sendLog, LinearLayout.LayoutParams(0, -2, 1f))
+        root.addView(row)
         setContentView(root)
         InstallLog.writeDeviceInfo(this)
         Thread { runInstall() }.start()
     }
 
-    private fun ui(msg: String) {
-        InstallLog.w(this, msg)
-        runOnUiThread { log.append(msg + "\n") }
+    private fun Space(px: Int, horizontal: Boolean = false): LinearLayout {
+        return LinearLayout(this).apply {
+            layoutParams = if (horizontal) LinearLayout.LayoutParams(px, -2)
+            else LinearLayout.LayoutParams(-1, px)
+        }
     }
 
-    private fun prog(p: Int) = runOnUiThread { bar.progress = p }
+    private fun ui(msg: String) {
+        InstallLog.w(this, msg)
+        if (!isFinishing) runOnUiThread { log.append(msg + "\n") }
+    }
+
+    private fun step(i: Int, state: Int) {
+        // 0 idle, 1 active, 2 ok, 3 fail
+        if (isFinishing) return
+        runOnUiThread {
+            val v = stepViews[i]
+            v.text = when (state) {
+                1 -> "◌  ${steps[i]}…"
+                2 -> "✓  ${steps[i]}"
+                3 -> "✗  ${steps[i]}"
+                else -> "○  ${steps[i]}"
+            }
+            v.setTextColor(
+                when (state) {
+                    2 -> 0xFF34D399.toInt()
+                    3 -> 0xFFF87171.toInt()
+                    1 -> 0xFFE8ECF3.toInt()
+                    else -> 0xFF9AA3B5.toInt()
+                }
+            )
+        }
+    }
+
+    private fun prog(p: Int) {
+        if (isFinishing) return
+        runOnUiThread {
+            bar.progress = p
+            pct.text = "$p%"
+        }
+    }
 
     private fun runInstall() {
-        runOnUiThread { retry.isEnabled = false }
+        if (!isFinishing) runOnUiThread { retry.isEnabled = false }
+        steps.indices.forEach { step(it, 0) }
         try {
-            // 0. место: нужно ~1.2 ГБ
-            val need = 1_200_000_000L
-            if (filesDir.freeSpace < need) {
+            if (filesDir.freeSpace < 1_200_000_000L) {
                 throw IllegalStateException("Мало места: нужно ~1.2 ГБ, свободно ${filesDir.freeSpace / 1024 / 1024} МБ")
             }
             val dl = File(cacheDir, "dl").apply { mkdirs() }
-            // 1. скачивание с докачкой
-            files.forEachIndexed { i, (url, name, tag) ->
+            val files = listOf(
+                Triple("$base/rootfs-bookworm-1/debian-rootfs.tar.xz", "debian-rootfs.tar.xz", 0),
+                Triple("$base/rootfs-bookworm-1/node.tar.xz", "node.tar.xz", 1),
+                Triple("$base/rootfs-bookworm-1/proot", "proot", 2),
+                Triple("$base/payload-1/dsh-payload.tar.xz", "dsh-payload.tar.xz", 3)
+            )
+            files.forEach { (url, name, si) ->
+                step(si, 1)
                 val out = File(dl, name)
-                ui("[$tag] download $url")
+                ui("[$name] download…")
                 downloadResume(url, out) { done, total ->
-                    val base = i * 100 / files.size
-                    prog(base + (if (total > 0) (done * 100 / total / files.size).toInt() else 0))
+                    val baseP = si * 100 / 7
+                    prog(baseP + (if (total > 0) (done * 60 / total / 7).toInt() else 0))
                 }
-                ui("[$tag] saved ${out.length()} bytes")
+                ui("[$name] ok ${out.length()} bytes")
+                step(si, 2)
             }
-            // 2. распаковка rootfs
-            ui("[rootfs] extract...")
-            shell(listOf("mkdir", "-p", Paths.debianDir(this).absolutePath))
+            step(4, 1)
+            ui("extract rootfs…")
             untar(File(dl, "debian-rootfs.tar.xz"), Paths.debianDir(this))
-            // 3. node внутрь rootfs
-            ui("[node] extract to debian/opt/node...")
+            prog(68)
+            ui("extract node…")
             untar(File(dl, "node.tar.xz"), File(Paths.debianDir(this), "opt"))
             fixNodeDir()
-            // 4. proot
-            ui("[proot] install...")
+            prog(76)
             File(dl, "proot").copyTo(Paths.prootBin(this), overwrite = true)
             Paths.prootBin(this).setExecutable(true)
-            // 5. payload
-            ui("[payload] extract...")
+            ui("extract payload…")
             untar(File(dl, "dsh-payload.tar.xz"), filesDir)
-            // 6. dsh-home каркас + zen-слой
+            prog(88)
+            step(4, 2)
+            step(5, 1)
+            // dsh-home каркас
             val home = Paths.dshHome(this).apply { mkdirs() }
             File(home, "cordis.patch.yml").writeText(
                 "# Home patch layer: default model -> zen adapter route.\n" +
@@ -109,49 +209,53 @@ class BootActivity : Activity() {
             )
             Paths.workspace(this).mkdirs()
             Paths.sharedWorkspace(this)
-            // 7. дымовой тест proot
-            ui("[proot] smoke test...")
             val p = ProcessBuilder(
                 Paths.prootBin(this).absolutePath, "-r", Paths.debianDir(this).absolutePath,
                 "/bin/echo", "proot-ok"
             ).start()
             val out = p.inputStream.bufferedReader().readText().trim()
             if (p.waitFor() != 0 || out != "proot-ok") throw IllegalStateException("proot smoke failed: $out")
+            step(5, 2)
+            step(6, 1)
             ui("INSTALL OK")
             prog(100)
+            step(6, 2)
             startService()
-            runOnUiThread { startMain() }
+            if (!isFinishing) runOnUiThread { startMain() }
         } catch (e: Exception) {
             ui("INSTALL FAILED: ${e.message}")
-            runOnUiThread {
-                retry.isEnabled = true
-                val b = Button(this).apply {
-                    text = getString(R.string.install_failed_title)
-                    setOnClickListener { InstallLog.share(this@BootActivity) }
-                }
-                (findViewById<LinearLayout>(android.R.id.content).getChildAt(0) as LinearLayout).addView(b)
-            }
+            steps.indices.forEach { if (!isFinishing) step(it, 3) }
+            if (!isFinishing) runOnUiThread { retry.isEnabled = true }
         }
     }
 
     private fun downloadResume(url: String, out: File, cb: (Long, Long) -> Unit) {
         var done = if (out.exists()) out.length() else 0L
-        repeat(3) { attempt ->
-            val c = (URL(url).openConnection() as HttpURLConnection).apply {
-                connectTimeout = 15000
-                readTimeout = 30000
-                if (done > 0) setRequestProperty("Range", "bytes=$done-")
-            }
+        var lastErr = ""
+        repeat(8) { attempt ->
+            var conn: HttpURLConnection? = null
             try {
-                if (c.responseCode == 416) return // уже докачан
-                val total = if (c.responseCode == 206) {
-                    done + (c.getHeaderField("Content-Length")?.toLongOrNull() ?: 0L)
-                } else {
-                    done = 0
-                    c.getHeaderField("Content-Length")?.toLongOrNull() ?: -1L
+                conn = (URL(url).openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 20000
+                    readTimeout = 60000
+                    setRequestProperty("User-Agent", "DSH-Android/1.0")
+                    if (done > 0) setRequestProperty("Range", "bytes=$done-")
+                    instanceFollowRedirects = true
                 }
-                c.inputStream.use { ins ->
-                    (if (done > 0) java.io.FileOutputStream(out, true) else out.outputStream()).use { os ->
+                when (conn.responseCode) {
+                    416 -> return
+                    206 -> { /* resume */ }
+                    200 -> { done = 0 }
+                    404 -> throw IllegalStateException("Файл не найден (404): $url")
+                    else -> throw IllegalStateException("HTTP ${conn.responseCode}: $url")
+                }
+                val total = if (conn.responseCode == 206) {
+                    done + (conn.getHeaderField("Content-Length")?.toLongOrNull() ?: 0L)
+                } else {
+                    conn.getHeaderField("Content-Length")?.toLongOrNull() ?: -1L
+                }
+                conn.inputStream.use { ins ->
+                    (if (done > 0 && conn.responseCode == 206) FileOutputStream(out, true) else out.outputStream()).use { os ->
                         val buf = ByteArray(256 * 1024)
                         while (true) {
                             val n = ins.read(buf)
@@ -163,18 +267,19 @@ class BootActivity : Activity() {
                     }
                 }
                 if (total < 0 || done >= total) return
+                lastErr = "неполное скачивание ($done/$total)"
             } catch (e: Exception) {
-                ui("retry $attempt: ${e.message}")
-                Thread.sleep(3000)
+                lastErr = e.message ?: e.toString()
+                ui("retry $attempt: $lastErr")
+                Thread.sleep(3000L * (attempt + 1))
             } finally {
-                c.disconnect()
+                conn?.disconnect()
             }
         }
-        throw IllegalStateException("download failed after retries: $url")
+        throw IllegalStateException("Скачивание не удалось после 8 попыток: $url ($lastErr)")
     }
 
     private fun untar(archive: File, dest: File) {
-        // Системного tar в Android нет — распаковка на Java (commons-compress: tar + xz).
         dest.mkdirs()
         var n = 0
         FileInputStream(archive).use { fis ->
@@ -192,7 +297,7 @@ class BootActivity : Activity() {
                         }
                         if (e.mode and 0b001001001 != 0) out.setExecutable(true, false)
                         n++
-                        if (n % 2000 == 0) ui("extract... $n entries")
+                        if (n % 2000 == 0) ui("extract… $n")
                     }
                 }
             }
@@ -201,16 +306,10 @@ class BootActivity : Activity() {
     }
 
     private fun fixNodeDir() {
-        // node-*.tar.xz содержит каталог node-vXX: переносим содержимое в opt/node
         val opt = File(Paths.debianDir(this), "opt")
         val inner = opt.listFiles { f -> f.isDirectory && f.name.startsWith("node-v") }?.firstOrNull()
         val target = File(opt, "node")
         if (inner != null && !target.exists()) inner.renameTo(target)
-    }
-
-    private fun shell(cmd: List<String>) {
-        val p = ProcessBuilder(cmd).start()
-        if (p.waitFor() != 0) throw IllegalStateException(cmd.joinToString(" "))
     }
 
     private fun startService() {
@@ -221,19 +320,5 @@ class BootActivity : Activity() {
     private fun startMain() {
         startActivity(Intent(this, MainActivity::class.java))
         finish()
-    }
-
-    @Suppress("unused")
-    private fun sha256(f: File): String {
-        val d = MessageDigest.getInstance("SHA-256")
-        f.inputStream().use { ins ->
-            val b = ByteArray(1024 * 1024)
-            while (true) {
-                val n = ins.read(b)
-                if (n < 0) break
-                d.update(b, 0, n)
-            }
-        }
-        return d.digest().joinToString("") { "%02x".format(it) }
     }
 }

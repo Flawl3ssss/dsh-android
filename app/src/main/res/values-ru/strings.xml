@@ -64,4 +64,5 @@
     <string name="tile_label">DSH</string>
     <string name="tile_on">DSH вкл</string>
     <string name="tile_off">DSH выкл</string>
+    <string name="boot_subtitle">Локальный AI-рантайм: Debian + DSH + Zen-адаптер</string>
 </resources>

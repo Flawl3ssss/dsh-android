@@ -64,4 +64,5 @@
     <string name="tile_label">DSH</string>
     <string name="tile_on">DSH on</string>
     <string name="tile_off">DSH off</string>
+    <string name="boot_subtitle">Local AI runtime: Debian + DSH + Zen adapter</string>
 </resources>
