@@ -518,6 +518,54 @@ class BootActivity : Activity() {
                 "/bin/true"
             )
         )
+        // Трассировка трансляции путей + корень глазами гостя + свой TMPDIR.
+        runProbeVerbose("trace-ls", listOf(bin, "-v", "9", "-r", root, "/bin/ls", "/"))
+        runProbe("root-ls", listOf(bin, "-r", root, "/bin/ls", "/"))
+        runProbeTmp("tmp-true", listOf(bin, "-r", root, "/bin/true"))
+    }
+
+
+    private fun runProbeVerbose(tag: String, cmd: List<String>) {
+        try {
+            val pb = ProcessBuilder(cmd)
+            pb.redirectErrorStream(true)
+            val p = pb.start()
+            val sb = StringBuilder()
+            val rdr = p.inputStream.bufferedReader()
+            repeat(30) {
+                val line = rdr.readLine() ?: return@repeat
+                if (sb.length < 3000) sb.append(line.replace("\n", "|")).append("\n")
+            }
+            p.waitFor()
+            // дочитываем остаток, чтобы не висеть на пайпе
+            try {
+                while (rdr.readLine() != null) {
+                }
+            } catch (_: Exception) {
+            }
+            try {
+                p.waitFor()
+            } catch (_: Exception) {
+            }
+            ui("probe [$tag] trace=${sb.toString().take(2500)}")
+        } catch (e: Exception) {
+            ui("probe [$tag] START FAILED: ${e.message}")
+        }
+    }
+
+    private fun runProbeTmp(tag: String, cmd: List<String>) {
+        try {
+            val tmp = java.io.File(filesDir, "proot-tmp").apply { mkdirs() }
+            val pb = ProcessBuilder(cmd)
+            pb.redirectErrorStream(true)
+            pb.environment()["TMPDIR"] = tmp.absolutePath
+            val p = pb.start()
+            val out = p.inputStream.bufferedReader().readText()
+            val code = p.waitFor()
+            ui("probe [$tag] exit=$code out=${out.take(400).replace("\n", "|")}")
+        } catch (e: Exception) {
+            ui("probe [$tag] START FAILED: ${e.message}")
+        }
     }
 
     private fun runProbe(tag: String, cmd: List<String>) {
