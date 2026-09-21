@@ -522,8 +522,40 @@ class BootActivity : Activity() {
         runProbeVerbose("trace-ls", listOf(bin, "-v", "9", "-r", root, "/bin/ls", "/"))
         runProbe("root-ls", listOf(bin, "-r", root, "/bin/ls", "/"))
         runProbeTmp("tmp-true", listOf(bin, "-r", root, "/bin/true"))
+        runProbeTraceFile("trace-full", listOf(bin, "-v", "9", "-r", root, "/bin/true"))
+        runProbeLdList(root, bin)
     }
 
+
+
+    /** Полный трейс proot в файл + хвост в лог (execve виден в конце). */
+    private fun runProbeTraceFile(tag: String, cmd: List<String>) {
+        try {
+            val f = java.io.File(Paths.logsDir(this), "proot-trace.log")
+            val pb = ProcessBuilder(cmd)
+            pb.redirectErrorStream(true)
+            pb.redirectOutput(f)
+            val p = pb.start()
+            val code = p.waitFor()
+            val tail = try {
+                val lines = f.readLines()
+                lines.takeLast(25).joinToString("\n")
+            } catch (e: Exception) {
+                "trace read failed: ${e.message}"
+            }
+            ui("probe [$tag] exit=$code tail=${tail.take(3000)}")
+        } catch (e: Exception) {
+            ui("probe [$tag] START FAILED: ${e.message}")
+        }
+    }
+
+    /** Проверка loader'а гостя: --list показывает зависимости без запуска. */
+    private fun runProbeLdList(root: String, bin: String) {
+        runProbe(
+            "ld-list",
+            listOf(bin, "-r", root, "/lib/ld-linux-aarch64.so.1", "--list", "/usr/bin/true")
+        )
+    }
 
     private fun runProbeVerbose(tag: String, cmd: List<String>) {
         try {
